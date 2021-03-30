@@ -1,5 +1,5 @@
 import pandas as pd
-from guizero import App, Text
+from guizero import App, Text, PushButton
 from datetime import datetime
 
 def read_building():
@@ -27,20 +27,24 @@ def now_string():
 def update_timestamp(floor, reading, timestamp, df, ground_distance, angle):
     ground_distance[0] -= 1
     floor.value = get_floor(df, ground_distance[0])
-    reading.value = '{}m {}°'.format(ground_distance[0], angle)
+    reading.value = u'{}m {}\N{DEGREE SIGN}'.format(ground_distance[0], angle)
     timestamp.value = now_string()
+    
+def close_app():
+    app.destroy()
     
 df = read_building()
 ground_distance = [df.ceil_ground_distance.iloc[-1]+10]  # Dummy variable
     
-app = App(title="Meter Display")
+app = App()
 building_name = Text(app, text="\nMetro Centre II\n", size=20)
 
 floor = Text(app, text="---", size=80, color='green')
-reading = Text(app, text="--- --°", size=40, color='green')
+reading = Text(app, text="--- --", size=40, color='green')
 Text(app)
 timestamp = Text(app, text="Pending to start...", size=20, color='grey')
+close = PushButton(app, command=close_app, text='Close')
 
 app.repeat(500, update_timestamp, [floor, reading, timestamp, df, ground_distance, 2])
-app.set_full_screen()
+app.tk.attributes("-fullscreen", True)
 app.display()
