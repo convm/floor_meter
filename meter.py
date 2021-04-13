@@ -2,6 +2,8 @@ import pandas as pd
 from guizero import App, Text, PushButton
 from datetime import datetime
 from configparser import ConfigParser
+import serial
+from time import sleep
 
 def read_config(): 
     config = ConfigParser()
@@ -35,17 +37,30 @@ def get_floor(df, current_ground_distance):
 def now_string():
     return datetime.now().strftime("%d-%b-%Y, %H:%M:%S")
 
-def update_timestamp(floor, reading, df, ground_distance, angle):
-    ground_distance[0] -= 1
-    floor.value = get_floor(df, ground_distance[0])
-    reading.value = u'{}m {}\N{DEGREE SIGN}'.format(ground_distance[0], angle)
+def read_single(ser):
+    s = ser.write(b'\xAE\xA7\x04\x00\x05\x09\xBC\xBE')
+    line = ser.readline() 
+    if (line == b'\xAE\xA7\x04\x00\x05\x89\xBC\xBE'):
+        return None
+    else:
+        dist = int.from_bytes(line[7:9], byteorder='big') / 10
+        return dist
+
+def update_timestamp(floor, reading, df):
+    ground_distance = read_single(ser)
+    if ground_distance != None:
+        floor.value = get_floor(df, ground_distance)
+        reading.value = u'{}m'.format(ground_distance)
+    else:
+        floor.value = 'N/A'
+        reading.value = 'N/A'
     
 def close_app():
+    ser.close()
     app.destroy()
 
 text1, text2, text3, text4 = read_config()
 df = read_building()
-ground_distance = [df.ceil_ground_distance.iloc[-1]+10]  # Dummy variable
     
 app = App()
 Text(app)
@@ -60,6 +75,9 @@ if text4: remark2 = Text(app, text=text4)
 Text(app)
 close = PushButton(app, command=close_app, text='Close')
 
-app.repeat(500, update_timestamp, [floor, reading, df, ground_distance, 2])
+app.repeat(1500, update_timestamp, [floor, reading, df])
 app.tk.attributes("-fullscreen", True)
+
+ser = serial.Serial('COM3', 9600, timeout=1)
+
 app.display()
