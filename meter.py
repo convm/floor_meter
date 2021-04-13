@@ -7,7 +7,7 @@ from time import sleep
 
 def read_config(): 
     config = ConfigParser()
-    config.read('Display.txt')
+    config.read('display.txt')
     config.sections()
     text1 = config['Main']['text1']
     text2 = config['Main']['text2']
