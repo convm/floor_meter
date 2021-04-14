@@ -98,7 +98,7 @@ def build_app_body(app, header_text, footer_text, df, ser):
     footer = Text(box, text=footer_text, size=20, grid=[0,3])
 
     app.repeat(1200, update_meter, [floor, reading, df, ser])
-    #app.tk.attributes("-fullscreen", True)
+    app.tk.attributes("-fullscreen", True)
     
     return app
 
@@ -110,24 +110,24 @@ def build_app():
     if drive is None:
         Text(app, 'Beacon Not Found')
         valid = False
-        
-    if not config_exists(drive):
-        Text(app, 'Config File Not Found')
-        valid = False
-    else:
-        header, footer = read_config(drive)
-        
-    if not building_exists(drive):
-        Text(app, 'Building File Not Found')
-        valid = False
-    else:
-        df = read_building(drive)
-        
-    try:
-        ser = serial.Serial('COM3', 9600, timeout=1)
-    except:
-        Text(app, 'Laser Not Ready')
-        valid = False
+    else:    
+        if not config_exists(drive):
+            Text(app, 'Config File Not Found')
+            valid = False
+        else:
+            header, footer = read_config(drive)
+
+        if not building_exists(drive):
+            Text(app, 'Building File Not Found')
+            valid = False
+        else:
+            df = read_building(drive)
+
+        try:
+            ser = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
+        except:
+            Text(app, 'Laser Not Ready')
+            valid = False
     
     if valid: app = build_app_body(app, header, footer, df, ser)
     app.display()
