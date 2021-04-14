@@ -1,5 +1,0 @@
-[Main]
-text1 = Metro Centre I
-text2 = 1-Apr-2021
-text3 = Sample Remark 1
-text4 = Sample Remark 2

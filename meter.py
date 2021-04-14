@@ -1,22 +1,46 @@
-import pandas as pd
-from guizero import App, Text, PushButton
+import os
+import psutil
 from datetime import datetime
-from configparser import ConfigParser
-import serial
 from time import sleep
+from configparser import ConfigParser
 
-def read_config(): 
+import serial
+import pandas as pd
+
+from guizero import App, Box, Text, PushButton, Picture
+from PIL import Image
+
+def find_beacon():
+    drives = [d.device for d in psutil.disk_partitions()]
+    for d in drives:
+        path = os.path.join(d, 'beacon.txt')
+        if os.path.exists(path) and validate_beacon(path): return d
+    return None
+
+def validate_beacon(path):
+    beacon_signature = '[DO NOT MODIFY THIS FILE] - Floor Meter'
+    with open(path, 'r') as f: return f.readline() == beacon_signature
+
+def config_exists(drive):
+    path = os.path.join(drive, 'config.txt')
+    return os.path.exists(path)
+
+def building_exists(drive):
+    path = os.path.join(drive, 'building.csv')
+    return os.path.exists(path)
+
+def read_config(drive): 
+    path = os.path.join(drive, 'config.txt')
     config = ConfigParser()
-    config.read('display.txt')
+    config.read(path)
     config.sections()
-    text1 = config['Main']['text1']
-    text2 = config['Main']['text2']
-    text3 = config['Main']['text3']
-    text4 = config['Main']['text4']
-    return (text1, text2, text3, text4)
+    header = config['Main']['header']
+    footer = config['Main']['footer']
+    return (header, footer)
     
-def read_building():
-    df = pd.read_csv('building.csv')
+def read_building(drive):
+    path = os.path.join(drive, 'building.csv')
+    df = pd.read_csv(path)
     cum_height = 0
     ceil_ground_distances = []
     
@@ -46,7 +70,7 @@ def read_single(ser):
         dist = int.from_bytes(line[7:9], byteorder='big') / 10
         return dist
 
-def update_timestamp(floor, reading, df):
+def update_meter(floor, reading, df, ser):
     ground_distance = read_single(ser)
     if ground_distance != None:
         floor.value = get_floor(df, ground_distance)
@@ -54,30 +78,58 @@ def update_timestamp(floor, reading, df):
     else:
         floor.value = 'N/A'
         reading.value = 'N/A'
+        
+def build_app_body(app, header_text, footer_text, df, ser):
     
-def close_app():
-    ser.close()
-    app.destroy()
-
-text1, text2, text3, text4 = read_config()
-df = read_building()
+    yl = Image.open("yl_logo.jfif")
+    yl.thumbnail((300, 150), Image.ANTIALIAS)
     
-app = App()
-Text(app)
-building_name = Text(app, text=text1, size=20)
-if text2: label2 = Text(app, text=text2)
+    omatic = Image.open('omatic_logo.jpg')
+    omatic.thumbnail((150,150), Image.ANTIALIAS)
+    
+    box = Box(app, layout='grid')
+    picture = Picture(box, image=yl, grid=[0,0])
+    picture = Picture(box, image=omatic, grid=[1,0])
+    
+    box = Box(app, layout='grid')
+    header = Text(box, text=header_text, size=20, align='top', grid=[0,0])
+    floor = Text(box, text="--/F", size=60, color='green', grid=[0,1])
+    reading = Text(box, text="--M", size=20, color='green', grid=[0,2])
+    footer = Text(box, text=footer_text, size=20, grid=[0,3])
 
-floor = Text(app, text="---", size=80, color='green')
-reading = Text(app, text="--- --", size=40, color='green')
-Text(app)
-remark1 = Text(app, text=text3)
-if text4: remark2 = Text(app, text=text4)
-Text(app)
-close = PushButton(app, command=close_app, text='Close')
+    app.repeat(1200, update_meter, [floor, reading, df, ser])
+    #app.tk.attributes("-fullscreen", True)
+    
+    return app
 
-app.repeat(1500, update_timestamp, [floor, reading, df])
-app.tk.attributes("-fullscreen", True)
-
-ser = serial.Serial('COM3', 9600, timeout=1)
-
-app.display()
+def build_app():
+    valid = True
+    app = App(bg='white')
+    drive = find_beacon()
+    
+    if drive is None:
+        Text(app, 'Beacon Not Found')
+        valid = False
+        
+    if not config_exists(drive):
+        Text(app, 'Config File Not Found')
+        valid = False
+    else:
+        header, footer = read_config(drive)
+        
+    if not building_exists(drive):
+        Text(app, 'Building File Not Found')
+        valid = False
+    else:
+        df = read_building(drive)
+        
+    try:
+        ser = serial.Serial('COM3', 9600, timeout=1)
+    except:
+        Text(app, 'Laser Not Ready')
+        valid = False
+    
+    if valid: app = build_app_body(app, header, footer, df, ser)
+    app.display()
+    
+build_app()
