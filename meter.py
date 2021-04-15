@@ -10,24 +10,15 @@ import pandas as pd
 from guizero import App, Box, Text, PushButton, Picture
 from PIL import Image
 
-def find_beacon():
-    drives = [d.device for d in psutil.disk_partitions()]
-    for d in drives:
-        path = os.path.join(d, 'beacon.txt')
-        if os.path.exists(path) and validate_beacon(path): return d
+def find_data_usb():
+    file_exists = lambda directory, filename : os.path.exists(os.path.join(directory, filename))
+    config_exists = lambda d : file_exists('config.txt')
+    building_exists = lambda d : file_exists('building.csv')
+    
+    drives = [d.mountpoint for d in psutil.disk_partitions()]
+    for d in drives: 
+        if config_exists(d) and building_exists(d): return d
     return None
-
-def validate_beacon(path):
-    beacon_signature = '[DO NOT MODIFY THIS FILE] - Floor Meter'
-    with open(path, 'r') as f: return f.readline() == beacon_signature
-
-def config_exists(drive):
-    path = os.path.join(drive, 'config.txt')
-    return os.path.exists(path)
-
-def building_exists(drive):
-    path = os.path.join(drive, 'building.csv')
-    return os.path.exists(path)
 
 def read_config(drive): 
     path = os.path.join(drive, 'config.txt')
@@ -57,9 +48,6 @@ def get_floor(df, current_ground_distance):
         if current_ground_distance <= x.ceil_ground_distance:
             return x.Floor
     return floor
-
-def now_string():
-    return datetime.now().strftime("%d-%b-%Y, %H:%M:%S")
 
 def read_single(ser):
     s = ser.write(b'\xAE\xA7\x04\x00\x05\x09\xBC\xBE')
@@ -105,17 +93,19 @@ def build_app_body(app, header_text, footer_text, df, ser):
 def build_app():
     valid = True
     app = App(bg='white')
-    drive = find_beacon()
+    drive = find_data_usb()
     
     if drive is None:
-        Text(app, 'Beacon Not Found')
+        Text(app, 'Data USB Not Found')
         valid = False
-    else:    
-        if not config_exists(drive):
-            Text(app, 'Config File Not Found')
-            valid = False
-        else:
+    else:
+        try:
             header, footer = read_config(drive)
+        except:
+            valid = False
+            Text(app, 'Config File Not Valid')
+            
+        try:
 
         if not building_exists(drive):
             Text(app, 'Building File Not Found')
@@ -124,7 +114,7 @@ def build_app():
             df = read_building(drive)
 
         try:
-            ser = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
+            ser = serial.Serial('COM3', 9600, timeout=1)
         except:
             Text(app, 'Laser Not Ready')
             valid = False
