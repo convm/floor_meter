@@ -106,12 +106,10 @@ def build_app():
             Text(app, 'Config File Not Valid')
             
         try:
-
-        if not building_exists(drive):
-            Text(app, 'Building File Not Found')
-            valid = False
-        else:
             df = read_building(drive)
+        except:
+            valid = False
+            Text(app, 'Building File Not Found')
 
         try:
             ser = serial.Serial('COM3', 9600, timeout=1)
